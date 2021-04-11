@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <h1>Add new item</h1>
+    <form method="POST" action="/added">
+        <input type="number" name="id" placeholder="Can be left empty">
+        <input type="text" name="item" placeholder="Item" required>
+        <input type="number" step="any" name="price" placeholder="Price" required>
+        <input type="text" name="category" placeholder="Category" required>
+        <input type="number" name="quantity" placeholder="Quantity" required>
+        <input type="number" name="SoldQuantity" placeholder="Sold Quantity" required>
+        <input type="submit">
+    </form>
+    <h3><a href="/items">Show all items</a></h3>
+
+</body>
+
+</html>

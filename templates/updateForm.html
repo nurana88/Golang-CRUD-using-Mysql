@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update</title>
+</head>
+
+<body>
+    <p>Update the item</p>
+    <form method="POST" action="update/process">
+        <input type="number" name="id" placeholder="Can be left empty" value="{{.ID}}">
+        <input type="text" name="item" placeholder="Item" required value="{{.Items}}">
+        <input type="number" step="any" name="price" placeholder="Price" required value="{{.UnitPrice}}">
+        <input type="text" name="category" placeholder="Category" required value="{{.ItemCategory}}">
+        <input type="number" name="quantity" placeholder="Quantity" required value="{{.Quantity}}">
+        <input type="number" name="SoldQuantity" placeholder="Sold Quantity" required value="{{.SoldQuantity}}">
+        <input type="submit">
+    </form>
+
+</body>
+
+</html>

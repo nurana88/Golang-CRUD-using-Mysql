@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All items</title>
+    <style>
+        html,
+        body,
+        h1 {
+            text-align: center;
+        }
+
+        body {
+            display: flex;
+            flex-flow: column nowrap;
+            justify-content: center;
+            align-items: left;
+            height: 100vh;
+        }
+
+        p {
+            margin-left: 4rem;
+            font-size: 1rem;
+            color: black;
+        }
+
+        .link {
+            font-size: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>All the items</h1>
+    <p>ID - Item - Unit Price (€) - Item Category - Quantity - Sold quantity</p>
+    {{range .}}
+    <p><a href="/item?id={{.ID}}">{{.ID}}</a> - {{.Items}} - {{.UnitPrice}}€ - {{.ItemCategory}} - {{.Quantity}} -
+        {{.SoldQuantity}} -
+        <a href="/items/update?id={{.ID}}">UPDATE</a> - <a href="/items/delete?id={{.ID}}">DELETE</a>
+    </p>
+    {{end}}
+    <h3><a href="/add">Add new item</a></h3>
+
+</body>
+
+</html>
