@@ -2,16 +2,18 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log"
+	"mysql/configurator"
 	"net/http"
 	"strconv"
-	"text/template"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/julienschmidt/httprouter"
 )
 
 var db *sql.DB
-var tpl *template.Template
 
 type Warehouse struct {
 	ID           int
@@ -24,7 +26,7 @@ type Warehouse struct {
 
 func init() {
 	var err error
-	db, err = sql.Open("mysql", "root:mypassword@tcp(127.0.0.1:3306)/testdb")
+	db, err = sql.Open("mysql", configurator.Configurator())
 	if err != nil {
 		fmt.Println("Can not be connected", err)
 		return
@@ -37,29 +39,22 @@ func init() {
 	}
 
 	fmt.Println("Successfully connected to DB...")
-	tpl = template.Must(template.ParseGlob("templates/*.html"))
 }
 
 func main() {
-	http.HandleFunc("/items", showAll)
-	http.HandleFunc("/item", showOne)
-	http.HandleFunc("/added", add)
-	http.HandleFunc("/add", addForm)
-	http.HandleFunc("/items/delete", delete)
-	http.HandleFunc("/items/update", updateForm)
-	http.HandleFunc("/items/update/process", update)
+	router := httprouter.New()
+	router.GET("/items", showAll)
+	router.GET("/item", showOne)
+	router.POST("/added", add)
+	router.GET("/items/delete", delete)
+	router.GET("/items/update", updateForm)
+	router.POST("/items/update/process", update)
 
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8080", router))
 
 }
 
-func showAll(w http.ResponseWriter, req *http.Request) {
-
-	if req.Method != "GET" {
-		http.Error(w, http.StatusText(405), 405)
-		fmt.Println("Error in showing", req.Method)
-		return
-	}
+func showAll(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	rows, err := db.Query("SELECT * FROM warehouse")
 	if err != nil {
@@ -79,15 +74,12 @@ func showAll(w http.ResponseWriter, req *http.Request) {
 		}
 		its = append(its, it)
 	}
-	tpl.ExecuteTemplate(w, "items.html", its)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(its)
 }
 
-func showOne(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
-		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		fmt.Println("Error in showOne", req.Method)
-		return
-	}
+func showOne(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	its := Warehouse{}
 
@@ -112,20 +104,12 @@ func showOne(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tpl.ExecuteTemplate(w, "show.html", its)
-
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(its)
 }
 
-func addForm(w http.ResponseWriter, req *http.Request) {
-	tpl.ExecuteTemplate(w, "addForm.html", nil)
-}
-
-func add(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "POST" {
-		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		fmt.Println("Error in posting", req.Method)
-		return
-	}
+func add(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	its := Warehouse{}
 
@@ -143,16 +127,12 @@ func add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tpl.ExecuteTemplate(w, "added.html", its)
-
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(its)
 }
 
-func delete(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
-		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		fmt.Println("Error in deleting", req.Method)
-		return
-	}
+func delete(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	id, err := strconv.Atoi(req.FormValue("id"))
 	if err != nil {
@@ -176,12 +156,8 @@ func delete(w http.ResponseWriter, req *http.Request) {
 	http.Redirect(w, req, "/items", http.StatusSeeOther)
 }
 
-func updateForm(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
-		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		fmt.Println("Error in update form", req.Method)
-		return
-	}
+func updateForm(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+
 	id, err := strconv.Atoi(req.FormValue("id"))
 	if err != nil {
 		fmt.Println("Can not convert into integer in updateForm", err)
@@ -202,16 +178,12 @@ func updateForm(w http.ResponseWriter, req *http.Request) {
 		fmt.Println("Error in updateForm", err)
 		return
 	}
-	tpl.ExecuteTemplate(w, "updateForm.html", it)
-
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(it)
 }
 
-func update(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "POST" {
-		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		fmt.Println("Error in update", req.Method)
-		return
-	}
+func update(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	it := Warehouse{}
 
@@ -232,6 +204,7 @@ func update(w http.ResponseWriter, req *http.Request) {
 
 	fmt.Println("Result of Update is: ", result)
 
-	tpl.ExecuteTemplate(w, "updated.html", it)
-
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(it)
 }
