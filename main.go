@@ -16,19 +16,19 @@ import (
 var db *sql.DB
 
 type Warehouse struct {
-	ID           int
-	Items        string
-	UnitPrice    float32
-	ItemCategory string
-	Quantity     int
-	SoldQuantity int
+	ID           int     `json:"id,omitempty"             sql:"id"`
+	Items        string  `json:"items,omitempty"          sql:"items"`
+	UnitPrice    float32 `json:"unit_price,omitempty"     sql:"unit_price"`
+	ItemCategory string  `json:"item_category,omitempty"  sql:"item_category"`
+	Quantity     int     `json:"quantity,omitempty"       sql:"quantity"`
+	SoldQuantity int     `json:"sold_quantity,omitempty"  sql:"sold_quantity"`
 }
 
 func init() {
 	var err error
 	db, err = sql.Open("mysql", configurator.Configurator())
 	if err != nil {
-		fmt.Println("Can not be connected", err)
+		fmt.Println("Can not be connected to DB", err)
 		return
 	}
 
@@ -45,13 +45,49 @@ func main() {
 	router := httprouter.New()
 	router.GET("/items", showAll)
 	router.GET("/item", showOne)
-	router.POST("/added", add)
-	router.GET("/items/delete", delete)
-	router.GET("/items/update", updateForm)
-	router.POST("/items/update/process", update)
+	router.POST("/insert", insert)
+	// router.GET("/items/delete", delete)
+	router.PATCH("/items/update", update)
 
 	log.Fatal(http.ListenAndServe(":8080", router))
 
+}
+
+func update(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	idQuery := req.URL.Query()["id"] // map[string][]string
+	id, err := strconv.Atoi(idQuery[0])
+	if err != nil {
+		fmt.Println("Error in converting int", err)
+		return
+	}
+
+	selectRow := db.QueryRow("SELECT * FROM warehouse WHERE id = ?", id)
+
+	it := Warehouse{}
+	err = selectRow.Scan(&it.ID, &it.Items, &it.UnitPrice, &it.ItemCategory, &it.Quantity, &it.SoldQuantity)
+	switch {
+	case err == sql.ErrNoRows:
+		http.NotFound(w, req)
+		fmt.Println("error in ErrNoRows in select", err)
+		return
+	case err != nil:
+		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+		fmt.Println("Error in update select", err)
+		return
+	}
+
+	result, err := db.Exec("UPDATE warehouse SET items = ?, unit_price=?, item_category=?, quantity=?, sold_quantity=? WHERE id=?;", it.Items, it.UnitPrice, it.ItemCategory, it.Quantity, it.SoldQuantity, it.ID)
+	if err != nil {
+		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+		fmt.Println("Error in update exec", err)
+		return
+	}
+
+	fmt.Println(result)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(it)
 }
 
 func showAll(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
@@ -83,19 +119,14 @@ func showOne(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	its := Warehouse{}
 
-	var err error
-	its.ID, err = strconv.Atoi(req.FormValue("id"))
+	idQuery := req.URL.Query()["id"] // map[string][]string
+	id, err := strconv.Atoi(idQuery[0])
 	if err != nil {
-		fmt.Println("Can not be converted in showOne", err)
+		fmt.Println("Error in converting int", err)
+		return
 	}
-	its.Items = req.FormValue("item")
-	p, _ := strconv.ParseFloat(req.FormValue("price"), 32)
-	its.UnitPrice = float32(p)
-	its.ItemCategory = req.FormValue("category")
-	its.Quantity, _ = strconv.Atoi(req.FormValue("quantity"))
-	its.SoldQuantity, _ = strconv.Atoi(req.FormValue("soldQuantity"))
 
-	row := db.QueryRow("SELECT * FROM warehouse WHERE id=?;", its.ID)
+	row := db.QueryRow("SELECT * FROM warehouse WHERE id=?;", id)
 
 	err = row.Scan(&its.ID, &its.Items, &its.UnitPrice, &its.ItemCategory, &its.Quantity, &its.SoldQuantity)
 
@@ -109,18 +140,41 @@ func showOne(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	json.NewEncoder(w).Encode(its)
 }
 
-func add(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+func insert(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
-	its := Warehouse{}
+	var err error
+	var price int
+	it := Warehouse{}
 
-	its.Items = req.FormValue("item")
-	p, _ := strconv.ParseFloat(req.FormValue("price"), 32)
-	its.UnitPrice = float32(p)
-	its.ItemCategory = req.FormValue("category")
-	its.Quantity, _ = strconv.Atoi(req.FormValue("quantity"))
-	its.SoldQuantity, _ = strconv.Atoi(req.FormValue("soldQuantity"))
+	idQuery := req.URL.Query()["id"] // map[string][]string
+	it.ID, err = strconv.Atoi(idQuery[0])
+	if err != nil {
+		fmt.Println("Error in converting int", err)
+		return
+	}
+	priceQuery := req.URL.Query()["unit_price"] // map[string][]string
+	price, err = strconv.Atoi(priceQuery[2])
+	if err != nil {
+		fmt.Println("Error in converting int", err)
+		return
+	}
 
-	_, err := db.Exec("INSERT INTO warehouse(items,unit_price,item_category,quantity,sold_quantity) VALUES(?,?,?,?,?);", its.Items, its.UnitPrice, its.ItemCategory, its.Quantity, its.SoldQuantity)
+	it.UnitPrice = float32(price)
+
+	qQuery := req.URL.Query()["quantity"] // map[string][]string
+	it.Quantity, err = strconv.Atoi(qQuery[4])
+	if err != nil {
+		fmt.Println("Error in converting int", err)
+		return
+	}
+	sqQuery := req.URL.Query()["sold_quantity"] // map[string][]string
+	it.SoldQuantity, err = strconv.Atoi(sqQuery[5])
+	if err != nil {
+		fmt.Println("Error in converting int", err)
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO warehouse(items,unit_price,item_category,quantity,sold_quantity) VALUES(?,?,?,?,?) WHERE id=?;", it.Items, it.UnitPrice, it.ItemCategory, it.Quantity, it.SoldQuantity, it.ID)
 	if err != nil {
 		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
 		fmt.Println("Error in adding item", err)
@@ -129,82 +183,29 @@ func add(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(its)
-}
-
-func delete(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-
-	id, err := strconv.Atoi(req.FormValue("id"))
-	if err != nil {
-		fmt.Println("Can not be converted into integer", err)
-		return
-	}
-
-	// var row *sql.Rows
-	_, err = db.Exec("DELETE FROM warehouse WHERE id=?;", id)
-	if err != nil {
-		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
-		fmt.Println("Error in delete query", err)
-		return
-	}
-	// err = row.Scan(&id)
-	// if err != nil {
-	// 	http.Error(w, http.StatusText(500), http.StatusInternalServerError)
-	// 	fmt.Println("Error in delete scan", err)
-	// 	return
-	// }
-	http.Redirect(w, req, "/items", http.StatusSeeOther)
-}
-
-func updateForm(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-
-	id, err := strconv.Atoi(req.FormValue("id"))
-	if err != nil {
-		fmt.Println("Can not convert into integer in updateForm", err)
-		return
-	}
-
-	row := db.QueryRow("SELECT * FROM warehouse WHERE id = ?", id)
-
-	it := Warehouse{}
-	err = row.Scan(&it.ID, &it.Items, &it.UnitPrice, &it.ItemCategory, &it.Quantity, &it.SoldQuantity)
-	switch {
-	case err == sql.ErrNoRows:
-		http.NotFound(w, req)
-		fmt.Println("error in ErrNoRows", err)
-		return
-	case err != nil:
-		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
-		fmt.Println("Error in updateForm", err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(it)
 }
 
-func update(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+// func delete(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
-	it := Warehouse{}
+// 	id, err := strconv.Atoi(req.FormValue("id"))
+// 	if err != nil {
+// 		fmt.Println("Can not be converted into integer", err)
+// 		return
+// 	}
 
-	it.ID, _ = strconv.Atoi(req.FormValue("id"))
-	it.Items = req.FormValue("item")
-	p, _ := strconv.ParseFloat(req.FormValue("price"), 32)
-	it.UnitPrice = float32(p)
-	it.ItemCategory = req.FormValue("category")
-	it.Quantity, _ = strconv.Atoi(req.FormValue("quantity"))
-	it.SoldQuantity, _ = strconv.Atoi(req.FormValue("SoldQuantity"))
-
-	result, err := db.Exec("UPDATE warehouse SET items = ?, unit_price=?, item_category=?, quantity=?, sold_quantity=? WHERE id=?;", it.Items, it.UnitPrice, it.ItemCategory, it.Quantity, it.SoldQuantity, it.ID)
-	if err != nil {
-		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
-		fmt.Println("Error in update exec", err)
-		return
-	}
-
-	fmt.Println("Result of Update is: ", result)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(it)
-}
+// 	// var row *sql.Rows
+// 	_, err = db.Exec("DELETE FROM warehouse WHERE id=?;", id)
+// 	if err != nil {
+// 		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+// 		fmt.Println("Error in delete query", err)
+// 		return
+// 	}
+// 	// err = row.Scan(&id)
+// 	// if err != nil {
+// 	// 	http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+// 	// 	fmt.Println("Error in delete scan", err)
+// 	// 	return
+// 	// }
+// 	http.Redirect(w, req, "/items", http.StatusSeeOther)
+// }
